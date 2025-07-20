@@ -1,6 +1,6 @@
 from .. import db
 
-from app.schemas.user_schema import user_schema
+from app.schemas.user_schema import user_schema, login_schema
 
 from app.services.user import get_user_by_username, get_user_by_email
 
@@ -24,3 +24,15 @@ def register_user(json_data):
 
     return user_response
 
+def login_user(json_data):
+    login_data = login_schema.load(json_data)
+
+    user = get_user_by_username(login_data['username'])
+    if not user or not user.check_password(login_data['password']):
+        raise ValueError("Credenciales inválidas")
+        
+    token = user.generate_token()
+    user_response = user_schema.dump(user)
+    user_response['token'] = token
+
+    return user_response

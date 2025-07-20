@@ -1,8 +1,6 @@
 from flask import Blueprint, request, jsonify
-from ..models import User
-from ..schemas import user_schema, login_schema
 from marshmallow import ValidationError
-from app.services.auth import register_user
+from app.services.auth import register_user, login_user
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -35,21 +33,7 @@ def login():
             return jsonify({'error': 'No se proporcionaron datos'}), 400
         
         # Validar datos usando el esquema de login
-        login_data = login_schema.load(json_data)
-        
-        # Buscar usuario por nombre de usuario
-        user = User.query.filter_by(username=login_data['username']).first()
-        
-        # Verificar si el usuario existe y la contraseña es correcta
-        if not user or not user.check_password(login_data['password']):
-            return jsonify({'error': 'Credenciales inválidas'}), 401
-        
-        # Generar token para el usuario
-        token = user.generate_token()
-        
-        # Serializar y devolver el usuario (sin la contraseña)
-        user_response = user_schema.dump(user)
-        user_response['token'] = token
+        user_response = login_user(json_data)
         
         return jsonify({
             'message': 'Inicio de sesión exitoso',
