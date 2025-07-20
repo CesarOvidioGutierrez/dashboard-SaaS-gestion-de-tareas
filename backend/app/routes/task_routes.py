@@ -1,9 +1,7 @@
 from flask import Blueprint, request, jsonify
-from ..models import Task, User
-from .. import db
-from datetime import datetime
+from ..models import Task
 from ..utils.auth import token_required
-from ..schemas import task_schema, tasks_schema
+import services.task as task_service
 from marshmallow import ValidationError
 
 tasks_bp = Blueprint('tasks', __name__)
@@ -12,24 +10,22 @@ tasks_bp = Blueprint('tasks', __name__)
 @tasks_bp.route('/api/tasks', methods=['GET'])
 @token_required
 def get_tasks(current_user):
-    # Obtener solo las tareas del usuario actual
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
+    # Obtener solo las tareas del usuario actual y serializarlas
+    tasks = task_service.get_tasks_by_user_id(current_user.id)
     
-    # Serializar las tareas usando el esquema
-    return jsonify(tasks_schema.dump(tasks))
+    return jsonify(tasks)
 
 # Obtener una tarea específica
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['GET'])
 @token_required
 def get_task(current_user, task_id):
     # Obtener la tarea y verificar que pertenezca al usuario actual
-    task = Task.query.get_or_404(task_id)
+    task = task_service.get_task(task_id)
     
     if task.user_id != current_user.id:
         return jsonify({'error': 'No autorizado para acceder a esta tarea'}), 403
     
-    # Serializar la tarea usando el esquema
-    return jsonify(task_schema.dump(task))
+    return jsonify(task)
 
 # Crear una nueva tarea
 @tasks_bp.route('/api/tasks', methods=['POST'])
@@ -41,19 +37,11 @@ def create_task(current_user):
         if not json_data:
             return jsonify({'error': 'No se proporcionaron datos'}), 400
         
-        # Validar y deserializar los datos usando el esquema
-        # Nota: load_instance=True en el esquema permite crear una instancia del modelo
-        task_data = task_schema.load(json_data)
+        # Se crea la tarea y se asigna el usuario actual como propietario, además se serializa la tarea
+        task_data = task_service.create_task(json_data, current_user.id)
         
-        # Asignar el usuario actual como propietario
-        task_data.user_id = current_user.id
-        
-        # Guardar en la base de datos
-        db.session.add(task_data)
-        db.session.commit()
-        
-        # Serializar y devolver la tarea creada
-        return jsonify(task_schema.dump(task_data)), 201
+        # Se devuelve la tarea creada
+        return jsonify(task_data), 201
         
     except ValidationError as err:
         # Manejar errores de validación
@@ -76,21 +64,11 @@ def update_task(current_user, task_id):
         if not json_data:
             return jsonify({'error': 'No se proporcionaron datos'}), 400
         
-        # Validar datos parciales (solo los campos proporcionados)
-        # Partial=True permite actualización parcial
-        task_data = task_schema.load(json_data, instance=task, partial=True)
-        
-        # No es necesario asignar los campos individualmente porque
-        # load con instance=task actualiza el objeto directamente
-        
-        # Actualizar fecha de modificación
-        task.updated_at = datetime.utcnow()
-        
-        # Guardar cambios
-        db.session.commit()
-        
-        # Serializar y devolver la tarea actualizada
-        return jsonify(task_schema.dump(task))
+        # Se actualiza la tarea
+        task_data = task_service.update_task(json_data, task_id)
+                
+        # Se devuelve la tarea actualizada
+        return jsonify(task_data)
         
     except ValidationError as err:
         # Manejar errores de validación
@@ -106,7 +84,7 @@ def delete_task(current_user, task_id):
     if task.user_id != current_user.id:
         return jsonify({'error': 'No autorizado para eliminar esta tarea'}), 403
     
-    db.session.delete(task)
-    db.session.commit()
+    # Se elimina la tarea
+    task_service.delete_task(task_id)
     
     return jsonify({'message': 'Tarea eliminada correctamente'}), 200
