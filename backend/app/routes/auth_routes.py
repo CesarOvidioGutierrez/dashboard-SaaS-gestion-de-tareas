@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 from ..models import User
-from .. import db
-from datetime import datetime
 from ..schemas import user_schema, login_schema
 from marshmallow import ValidationError
+from app.services.auth import register_user
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -14,32 +13,9 @@ def register():
         json_data = request.get_json()
         if not json_data:
             return jsonify({'error': 'No se proporcionaron datos'}), 400
-        
-        # Validar datos usando el esquema
-        user_data = user_schema.load(json_data)
-        
-        # Verificar si el usuario ya existe
-        if User.query.filter_by(username=user_data.username).first():
-            return jsonify({'error': 'El nombre de usuario ya está en uso'}), 409
-        
-        # Verificar si el email ya existe
-        if User.query.filter_by(email=user_data.email).first():
-            return jsonify({'error': 'El email ya está registrado'}), 409
-        
-        # Hashear la contraseña
-        password = user_data.password_hash  # En realidad es el campo 'password' del JSON
-        user_data.set_password(password)
-        
-        # Guardar en la base de datos
-        db.session.add(user_data)
-        db.session.commit()
-        
-        # Generar token para el nuevo usuario
-        token = user_data.generate_token()
-        
-        # Serializar y devolver el usuario creado (sin la contraseña)
-        user_response = user_schema.dump(user_data)
-        user_response['token'] = token
+
+        # Registrar usuario 
+        user_response = register_user(json_data)
         
         return jsonify({
             'message': 'Usuario registrado exitosamente',

@@ -1,7 +1,7 @@
 
 from flask_marshmallow import Marshmallow
 from marshmallow import fields, validates, ValidationError
-from ..models import User, Task
+from ..models import  Task
 
 # Inicializar Marshmallow
 ma = Marshmallow()
@@ -12,7 +12,7 @@ class TaskSchema(ma.SQLAlchemySchema):
         model = Task
         load_instance = True  # Permite deserializar a una instancia del modelo
     
-    id = ma.auto_field(dump_only=True)  # Solo para serialización, no para carga
+    id = ma.auto_field(dump_only=True)
     title = ma.auto_field(required=True)
     description = ma.auto_field()
     status = ma.auto_field()
@@ -36,19 +36,6 @@ class TaskSchema(ma.SQLAlchemySchema):
         if value not in valid_priorities:
             raise ValidationError(f"Prioridad inválida. Debe ser uno de: {', '.join(valid_priorities)}")
 
-# Esquema para el modelo User (para registro y respuestas)
-class UserSchema(ma.SQLAlchemySchema):
-    class Meta:
-        model = User
-        load_instance = True
-    
-    id = ma.auto_field(dump_only=True)
-    username = ma.auto_field(required=True)
-    email = ma.auto_field(required=True)
-    password = fields.String(load_only=True, required=True)  # Solo para carga, no para serialización
-    created_at = ma.auto_field(dump_only=True)
-    updated_at = ma.auto_field(dump_only=True)
-
 # Esquema para login
 class LoginSchema(ma.Schema):
     username = fields.String(required=True)
@@ -57,5 +44,4 @@ class LoginSchema(ma.Schema):
 # Crear instancias de los esquemas
 task_schema = TaskSchema()
 tasks_schema = TaskSchema(many=True)
-user_schema = UserSchema()
 login_schema = LoginSchema() 
