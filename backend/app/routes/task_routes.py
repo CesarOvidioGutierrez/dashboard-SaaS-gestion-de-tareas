@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
-from ..models import Task
 from ..utils.auth import token_required
+from ..decorators.task import task_ownership_required
 import services.task as task_service
-from marshmallow import ValidationError
+from ..exceptions import APIError
 
 tasks_bp = Blueprint('tasks', __name__)
 
@@ -18,73 +18,54 @@ def get_tasks(current_user):
 # Obtener una tarea específica
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['GET'])
 @token_required
-def get_task(current_user, task_id):
-    # Obtener la tarea y verificar que pertenezca al usuario actual
-    task = task_service.get_task(task_id)
+@task_ownership_required
+def get_task(task):
+    # La tarea ya viene validada por el decorator
+    task_data = task_service.get_task(task)
     
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'No autorizado para acceder a esta tarea'}), 403
-    
-    return jsonify(task)
+    return jsonify(task_data)
 
 # Crear una nueva tarea
 @tasks_bp.route('/api/tasks', methods=['POST'])
 @token_required
 def create_task(current_user):
-    try:
-        # Obtener datos JSON
-        json_data = request.get_json()
-        if not json_data:
-            return jsonify({'error': 'No se proporcionaron datos'}), 400
-        
-        # Se crea la tarea y se asigna el usuario actual como propietario, además se serializa la tarea
-        task_data = task_service.create_task(json_data, current_user.id)
-        
-        # Se devuelve la tarea creada
-        return jsonify(task_data), 201
-        
-    except ValidationError as err:
-        # Manejar errores de validación
-        return jsonify({'error': 'Error de validación', 'details': err.messages}), 400
+    # Obtener datos JSON
+    json_data = request.get_json()
+    if not json_data:
+        raise APIError('No se proporcionaron datos', 400)
+    
+    # ValidationError se maneja automáticamente por el error handler centralizado
+    task_data = task_service.create_task(json_data, current_user.id)
+    
+    # Se devuelve la tarea creada
+    return jsonify(task_data), 201
 
 # Actualizar una tarea existente
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @token_required
-def update_task(current_user, task_id):
-    # Obtener la tarea existente
-    task = Task.query.get_or_404(task_id)
+@task_ownership_required
+def update_task(task):
+    # La tarea ya viene validada por el decorator
     
-    # Verificar que la tarea pertenezca al usuario actual
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'No autorizado para modificar esta tarea'}), 403
+    # Obtener datos JSON
+    json_data = request.get_json()
+    if not json_data:
+        raise APIError('No se proporcionaron datos', 400)
     
-    try:
-        # Obtener datos JSON
-        json_data = request.get_json()
-        if not json_data:
-            return jsonify({'error': 'No se proporcionaron datos'}), 400
-        
-        # Se actualiza la tarea
-        task_data = task_service.update_task(json_data, task_id)
-                
-        # Se devuelve la tarea actualizada
-        return jsonify(task_data)
-        
-    except ValidationError as err:
-        # Manejar errores de validación
-        return jsonify({'error': 'Error de validación', 'details': err.messages}), 400
+    # ValidationError se maneja automáticamente por el error handler
+    task_data = task_service.update_task(json_data, task)
+            
+    # Se devuelve la tarea actualizada
+    return jsonify(task_data)
 
 # Eliminar una tarea
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 @token_required
-def delete_task(current_user, task_id):
-    task = Task.query.get_or_404(task_id)
-    
-    # Verificar que la tarea pertenezca al usuario actual
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'No autorizado para eliminar esta tarea'}), 403
+@task_ownership_required
+def delete_task(task):
+    # La tarea ya viene validada por el decorator
     
     # Se elimina la tarea
-    task_service.delete_task(task_id)
+    task_service.delete_task(task)
     
     return jsonify({'message': 'Tarea eliminada correctamente'}), 200
